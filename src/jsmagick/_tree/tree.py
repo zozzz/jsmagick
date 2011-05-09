@@ -59,6 +59,8 @@ class HasChildren:
         self.children = []
 
     def addChild(self, node):
+        if node is None:
+            return
         node.parent = self
         self.children.append(node)
         #self._onAddChild(self, node)
@@ -419,6 +421,89 @@ class KeyValuePair(ScriptElement):
     def __repr__(self):
         return "<KeyVal k:%s, v:%s>" % (self.key, self.value)
 
+class CodeBlock(ScriptElement, HasChildren):
+    def __init__(self):
+        ScriptElement.__init__(self)
+        HasChildren.__init__(self)
+
+    def __repr__(self):
+        return "<CodeBlock %s>" % (self.children)
+
+class For(Statement):
+    __slots__ = (
+        "target",
+        "expr",
+        "body",
+        "orelse"
+    )
+
+    def __init__(self, target, expr, body, orelse):
+        Statement.__init__(self)
+        self.target = target
+        self.expr = expr
+        self.body = body
+        self.orelse = orelse
+
+    def __repr__(self):
+        return "<For %s in %s: %s else: %s>" % (self.target, self.expr, self.body, self.orelse)
+
+class Call(Expression):
+    __slots__ = (
+        "id",
+        "args",
+        "kwargs",
+        "args_ref",
+        "kwargs_ref"
+    )
+
+    def __init__(self, id, args, kwargs, args_ref, kwargs_ref):
+        Expression.__init__(self, Expression.Context.LOAD)
+        self.id = id
+        self.args = args
+        self.kwargs = kwargs
+        self.args_ref = args_ref
+        self.kwargs_ref = kwargs_ref
+
+    def __repr__(self):
+        return "<Call %s(%s, %s, %s, %s)>" % (self.id, self.args, self.kwargs, self.args_ref, self.kwargs_ref)
+
+class Print(Call):
+    __slots__ = (
+        "newLine",
+        "dest"
+    )
+
+    def __init__(self, dest, args, nl):
+        self.newLine = nl and True or False
+        self.dest = dest;
+        Call.__init__(self, Identifier("print" + (self.newLine and "nl" or "")), args, None, None, None)
+
+    def __repr__(self):
+        return "<Print %s, %s>" % (Call.__repr__(self), self.dest)
+
+class Return(Statement):
+    __slots__ = (
+        "expr"
+    )
+
+    def __init__(self, expr):
+        Statement.__init__(self)
+        self.expr = expr
+
+    def __repr__(self):
+        return "<Return %s>" % self.expr
+
+class Delete(Statement):
+    __slots__ = (
+        "targets"
+    )
+
+    def __init__(self, targets):
+        Statement.__init__(self)
+        self.targets = targets
+
+    def __repr__(self):
+        return "<Delete %s>" % self.targets
 
 #===============================================================================
 # OPERATORS

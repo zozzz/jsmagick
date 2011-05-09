@@ -7,7 +7,8 @@ Created on 2011.05.09.
 l = [1, 2, 3, 4, 5]
 
 for x in l:
-    print l
+    print x
+    print x ** 2
 
 l = {
     "key1": "val1",
@@ -21,3 +22,8 @@ for x in l:
 
 for (k, v) in l.iteritems():
     print "%s: %s" % (k, v)
+
+for k in []:
+    pass
+else:
+    print "EMPTY"

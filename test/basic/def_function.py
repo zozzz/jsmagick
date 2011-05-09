@@ -5,10 +5,10 @@ Created on 2011.05.07.
 '''
 
 def test():
-    pass
+    return 10
 
 def test2(arg1, arg2=None, arg3=False, arg4=test):
-    pass
+    return 10, 20
 
 def test3(*args):
     pass

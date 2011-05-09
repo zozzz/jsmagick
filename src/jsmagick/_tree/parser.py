@@ -4,9 +4,9 @@ Created on 2011.05.06.
 @author: Zozzz
 '''
 
-# MISSING: Interactive, Expression, Suite, Return, Delete, Print, For, While, If, With, Raise, TryExcept, TryFinally, Assert
-# Exec, Global, Break, Continue, Lambda, IfExp, Set, ListComp, SetComp, DictComp, GeneratorExp, Yield, Call, Repr
-# Subscript, slice, comprehension, excepthandler, keyword 
+# MISSING: Interactive, Expression, Suite, While, If, With, Raise, TryExcept, TryFinally, Assert
+# Exec, Global, Break, Continue, Lambda, IfExp, Set, ListComp, SetComp, DictComp, GeneratorExp, Yield, Repr
+# Subscript, slice, comprehension, excepthandler 
 
 import ast
 from tree import *
@@ -165,7 +165,7 @@ class Visitor(ast.NodeVisitor):
         _node = ObjectLiteral()
         _node.astNode = node
         for i in range(0, len(node.keys)):
-            _node.addChild(KeyValuePair(node.keys[i].s, Visitor().visit_get(node.values[i])))
+            _node.addChild(KeyValuePair(Visitor().visit_get(node.keys[i]), Visitor().visit_get(node.values[i])))
 
         self.root.addChild(_node)
 
@@ -243,6 +243,77 @@ class Visitor(ast.NodeVisitor):
         opcls = self._getOpClass(node.op)
         _node = opcls.__new__(opcls)
         _node.__init__(Visitor().visit_get(node.values[0]), Visitor().visit_get(node.values[1]))
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Print(self, node):
+        _vals = []
+
+        for expr in node.values:
+            _vals.append(Visitor().visit_get(expr))
+
+        _node = Print(node.dest and Visitor().visit_get(node.dest) or None, _vals, node.nl)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Call(self, node):
+
+        _args = []
+        for arg in node.args:
+            _args.append(Visitor().visit_get(arg))
+
+        _kwargs = []
+        for arg in node.keywords:
+            _kwargs.append(Visitor().visit_get(arg))
+
+        _node = Call(
+            Visitor().visit_get(node.func),
+            _args,
+            _kwargs,
+            node.starargs and Visitor().visit_get(node.starargs) or None,
+            node.kwargs and Visitor().visit_get(node.kwargs) or None
+        )
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_For(self, node):
+        _body = CodeBlock()
+        for stm in node.body:
+            Visitor(_body).visit_get(stm)
+
+        _orelse = CodeBlock()
+        for stm in node.orelse:
+            Visitor(_orelse).visit(stm)
+        else:
+            _orelse = None
+
+        _for = For(
+            Visitor().visit_get(node.target),
+            Visitor().visit_get(node.iter),
+            _body,
+            _orelse
+        )
+        _for.astNode = node
+        self.root.addChild(_for)
+
+    def visit_Return(self, node):
+        _node = Return(node.value and Visitor().visit_get(node.value) or None)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Delete(self, node):
+        _targets = []
+        for exp in node.targets:
+            _targets.append(Visitor().visit_get(exp))
+        _node = Delete(_targets)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_keyword(self, node):
+        _node = KeyValuePair(
+            node.arg,
+            Visitor().visit_get(node.value)
+        )
         _node.astNode = node
         self.root.addChild(_node)
 
