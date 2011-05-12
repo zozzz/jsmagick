@@ -4,13 +4,15 @@ Created on 2011.05.06.
 @author: Zozzz
 '''
 
-# MISSING: Interactive, Expression, Suite, While, If, With, Raise, TryExcept, TryFinally, Assert
-# Exec, Global, Break, Continue, Lambda, IfExp, Set, ListComp, SetComp, DictComp, GeneratorExp, Yield, Repr
-# Subscript, slice, comprehension, excepthandler 
+# MISSING: Interactive, Expression, Suite
+# Exec, IfExp, Set, ListComp, SetComp, DictComp, GeneratorExp, Yield
+# comprehension, Ellipsis, ExtSlice
 
 import ast
-from tree import *
 import os
+
+from tree import *
+from path import PathResolver
 
 class Parser:
     CURRENT_FILE = None
@@ -19,14 +21,14 @@ class Parser:
     def parseFile(file):
         Parser.CURRENT_FILE = file
 
-        fp = open(file, "r")
-        fp.seek(0, os.SEEK_END)
-        size = fp.tell()
-        fp.seek(0, os.SEEK_SET)
+        with open(file, "r") as fp:
+            fp.seek(0, os.SEEK_END)
+            size = fp.tell()
+            fp.seek(0, os.SEEK_SET)
 
-        ret = Parser.parseString(fp.read(size))
-        Parser.CURRENT_FILE = None
-        return ret
+            ret = Parser.parseString(fp.read(size))
+            Parser.CURRENT_FILE = None
+            return ret
 
     @staticmethod
     def parseString(str):
@@ -40,7 +42,7 @@ class Parser:
         return visitor.root
 
 
-ImportModule._loadModule = lambda self: Parser.parseFile(self.file)
+#ImportModule._loadModule = lambda self: Parser.parseFile(self.file)
 
 
 class Visitor(ast.NodeVisitor):
@@ -71,7 +73,7 @@ class Visitor(ast.NodeVisitor):
             Visitor(self.root).visit(sub)
 
     def visit_Import(self, node):
-        _module = self.root.ctx.getCtx(CodeContext.Type.MODULE).node
+        _module = self.root.module
 
         for alias in node.names:
             moduleFile = self._moduleFile(alias.name)
@@ -80,7 +82,7 @@ class Visitor(ast.NodeVisitor):
             _module.addChild(_child)
 
     def visit_ImportFrom(self, node):
-        _module = self.root.ctx.getCtx(CodeContext.Type.MODULE).node
+        _module = self.root.module
 
         moduleFile = self._moduleFile(node.module)
         for alias in node.names:
@@ -107,31 +109,9 @@ class Visitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         #print "Func: %s, args: %s" % (node.name, node.args.args)
-        normalArgs = []
-        defs = node.args.defaults
-        if defs:
-            dl = len(defs)
-        else:
-            dl = 0
 
-        c = len(node.args.args)
-        for arg in node.args.args:
-            _def = None
-            _name = self._qName(arg)
 
-            if dl and dl - c >= 0:
-                _def = Visitor().visit_get(defs[dl - c])
-
-            c -= 1
-            normalArgs.append(FArgument(Identifier(_name), _def))
-
-        if node.args.vararg:
-            normalArgs.append(VarArg(Identifier(node.args.vararg)))
-
-        if node.args.kwarg:
-            normalArgs.append(KwArg(Identifier(node.args.kwarg)))
-
-        _node = Function(node.name, normalArgs, [])
+        _node = Function(node.name, self._arguments(node.args), [])
         _node.astNode = node
         for stm in node.body:
             Visitor(_node).visit(stm)
@@ -160,6 +140,21 @@ class Visitor(ast.NodeVisitor):
 
     def visit_Pass(self, node):
         pass
+
+    def visit_Global(self, node):
+        _node = Global(node.names)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Break(self, node):
+        _node = Break()
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Continue(self, node):
+        _node = Continue()
+        _node.astNode = node
+        self.root.addChild(_node)
 
     def visit_Dict(self, node):
         _node = ObjectLiteral()
@@ -277,24 +272,45 @@ class Visitor(ast.NodeVisitor):
         self.root.addChild(_node)
 
     def visit_For(self, node):
-        _body = CodeBlock()
-        for stm in node.body:
-            Visitor(_body).visit_get(stm)
-
-        _orelse = CodeBlock()
-        for stm in node.orelse:
-            Visitor(_orelse).visit(stm)
-        else:
-            _orelse = None
+        _body = self._codeBlock(node.body)
+        _else = self._codeBlock(node.orelse)
 
         _for = For(
             Visitor().visit_get(node.target),
             Visitor().visit_get(node.iter),
             _body,
-            _orelse
+            _else
         )
         _for.astNode = node
         self.root.addChild(_for)
+
+    def visit_While(self, node):
+        _test = Visitor().visit_get(node.test)
+        _body = self._codeBlock(node.body)
+        _else = self._codeBlock(node.orelse)
+
+        _node = While(_test, _body, _else)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_If(self, node):
+        _test = Visitor().visit_get(node.test)
+        _body = self._codeBlock(node.body)
+        _else = self._codeBlock(node.orelse)
+
+        _node = If(_test, _body, _else)
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_With(self, node):
+
+        _node = With(
+            Visitor().visit_get(node.context_expr),
+            node.optional_vars and Visitor().visit_get(node.optional_vars) or None,
+            self._codeBlock(node.body)
+        )
+        _node.astNode = node
+        self.root.addChild(_node)
 
     def visit_Return(self, node):
         _node = Return(node.value and Visitor().visit_get(node.value) or None)
@@ -309,6 +325,80 @@ class Visitor(ast.NodeVisitor):
         _node.astNode = node
         self.root.addChild(_node)
 
+    def visit_Raise(self, node):
+        _node = Raise(
+            node.type and Visitor().visit_get(node.type) or None,
+            node.inst and Visitor().visit_get(node.inst) or None,
+            node.tback and Visitor().visit_get(node.tback) or None
+        )
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_TryExcept(self, node):
+        _node = TryExcept(
+            self._codeBlock(node.body),
+            self._codeBlock(node.orelse)
+        )
+        _node.astNode = node
+
+        for stm in node.handlers:
+            Visitor(_node).visit(stm)
+
+        self.root.addChild(_node)
+
+    def visit_TryFinally(self, node):
+        _node = TryFinally(self._codeBlock(node.body), self._codeBlock(node.finalbody))
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_ExceptHandler(self, node):
+
+        _node = ExceptHandler(
+            node.type and Visitor().visit_get(node.type) or None,
+            node.name and Visitor().visit_get(node.name) or None,
+            self._codeBlock(node.body)
+        )
+
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Assert(self, node):
+        _node = Assert(Visitor().visit_get(node.test), Visitor().visit_get(node.msg))
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Lambda(self, node):
+        _node = Lambda(self._arguments(node.args), Visitor().visit_get(node.body))
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Subscript(self, node):
+        _node = Subscript(
+            Visitor().visit_get(node.value),
+            Visitor().visit_get(node.slice),
+            Expression.Context.getCtxFromAstNode(node.ctx)
+        )
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Slice(self, node):
+        _node = Slice(
+            node.lower and Visitor().visit_get(node.lower) or None,
+            node.upper and Visitor().visit_get(node.upper) or None,
+            node.step and Visitor().visit_get(node.step) or None
+        )
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Index(self, node):
+        _node = Index(Visitor().visit_get(node.value))
+        _node.astNode = node
+        self.root.addChild(_node)
+
+    def visit_Repr(self, node):
+        print "REPR: %s" % (node.value)
+        # TODO: implement
+
     def visit_keyword(self, node):
         _node = KeyValuePair(
             node.arg,
@@ -318,11 +408,50 @@ class Visitor(ast.NodeVisitor):
         self.root.addChild(_node)
 
     def generic_visit(self, node):
-        print "genric_visit %s" % node
-        pass
+        raise NotImplementedError("%s" % node)
+
+    def _arguments(self, args):
+        result = []
+        defs = args.defaults
+        if defs:
+            dl = len(defs)
+        else:
+            dl = 0
+
+        c = len(args.args)
+        for arg in args.args:
+            _def = None
+            _name = self._qName(arg)
+
+            if dl and dl - c >= 0:
+                _def = Visitor().visit_get(defs[dl - c])
+
+            c -= 1
+            result.append(FArgument(Identifier(_name), _def))
+
+        if args.vararg:
+            result.append(VarArg(Identifier(args.vararg)))
+
+        if args.kwarg:
+            result.append(KwArg(Identifier(args.kwarg)))
+
+        return result
+
+    def _codeBlock(self, list):
+        if not list:
+            return None
+
+        _ret = CodeBlock()
+        for stm in list:
+            Visitor(_ret).visit(stm)
+
+        if not _ret.children:
+            return None
+
+        return _ret
 
     def _moduleFile(self, name):
-        moduleFile = PathResolver.getFilePathFromModuleName(name, self.root.ctx.getCtx(CodeContext.Type.MODULE).node.file)
+        moduleFile = PathResolver.getFilePathFromModuleName(name, self.root.module.file)
         if moduleFile is None:
             raise ImportError("Module not found: %s in %s" % (name, self._getLocation()))
         return moduleFile
@@ -346,7 +475,7 @@ class Visitor(ast.NodeVisitor):
     def _getLocation(self, node=None):
         if not node:
             node = self.current
-        return "[File: %s, line: %d, col: %d]" % (self.root.ctx.getCtx(CodeContext.Type.MODULE).node.file, node.lineno, node.col_offset)
+        return "[File: %s, line: %d, col: %d]" % (self.root.module.file, node.lineno, node.col_offset)
 
     def _cmpTree(self, n, i):
         if i == 0:
@@ -371,15 +500,15 @@ class Visitor(ast.NodeVisitor):
     @staticmethod
     def _getOpClass(node):
         return Visitor.OP_CLASS_MAP[node.__class__.__name__]
+        #return globals()["op%s" % node.__class__.__name__]
 
-import jsmagick._tree.tree as TREE
 # Add | Sub | Mult | Div | Mod | Pow | LShift | RShift | BitOr | BitXor | BitAnd | FloorDiv
 # Invert | Not | UAdd | USub
 # Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
 # And | Or
+_GLOBALS_ = globals()
 for cls in [ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow, ast.LShift, ast.RShift, ast.BitOr, ast.BitXor, ast.BitAnd, ast.FloorDiv,
             ast.Invert, ast.Not, ast.UAdd, ast.USub,
             ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Is, ast.IsNot, ast.In, ast.NotIn,
             ast.And, ast.Or]:
-    Visitor.OP_CLASS_MAP[cls.__name__] = getattr(TREE, "op%s" % cls.__name__)
-
+    Visitor.OP_CLASS_MAP[cls.__name__] = _GLOBALS_["op%s" % cls.__name__]

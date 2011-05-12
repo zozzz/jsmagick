@@ -28,6 +28,9 @@ x = a0 >= a1
 x = a0 == a1
 x = a0 != a1
 x = a0 is a1
+x = a1 is not a2
+x = a1 in a2
+x = a1 not in a2
 
 # BoolOp
 x = a0 and a1

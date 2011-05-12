@@ -13,8 +13,3 @@ class Test:
 
     def hello(self):
         pass
-
-    class SetterGetterV1:
-        def fget(self): pass
-        def fset(self): pass
-        def fdel(self): pass

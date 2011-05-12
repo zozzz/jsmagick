@@ -2,8 +2,8 @@
 __version__ = 1.0
 __author__ = "Zozzz"
 
-from _tree.ctx import PathResolver
-from _tree.parser import Parser
+from _parser.path import PathResolver
+from _parser.parser import Parser
 
 
 
