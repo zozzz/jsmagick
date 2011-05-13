@@ -22,9 +22,11 @@ var moduleName = (function()
 	 * 		def xy(self): pass
 	 * 
 	 * func() 
+	 * 
 	 */
 	
 	var TOP_LEVEL = JSM_def(globals, "TOP_LEVEL", "TOP_LEVEL");
+	
 	 
 	globals.ClassName = function(){}; /*Class decl...*/
 	globals.func = function(){};
