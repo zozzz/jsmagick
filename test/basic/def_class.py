@@ -4,7 +4,7 @@ Created on 2011.05.08.
 @author: Zozzz
 '''
 
-class Test:
+class Test(object):
 
     TEST = 10
 
@@ -16,3 +16,6 @@ class Test:
 
 class SubTest(Test):
     pass
+
+class B:
+    C = Test()
