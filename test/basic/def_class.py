@@ -4,7 +4,7 @@ Created on 2011.05.08.
 @author: Zozzz
 '''
 
-class Test:
+class Test(object):
 
     TEST = 10
 
@@ -12,4 +12,7 @@ class Test:
         pass
 
     def hello(self):
-        pass
+        print self.TEST
+
+class B:
+    C = Test()
