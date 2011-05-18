@@ -21,6 +21,7 @@ class Parser:
     @staticmethod
     def parseFile(file):
         if Parser.MODULES.has_key(file):
+            Parser.SESSION.addModule(Parser.MODULES[file])
             return Parser.MODULES[file]
 
         Parser.CURRENT_FILE = file
@@ -89,7 +90,7 @@ class Visitor(ast.NodeVisitor):
 
         for alias in node.names:
             moduleFile = self._moduleFile(alias.name)
-            _child = ImportModule(moduleFile, alias.name, [alias.name, alias.asname][bool(alias.asname)])
+            _child = ImportModule(Parser.parseFile(moduleFile), alias.name, [alias.name, alias.asname][bool(alias.asname)])
             _child.astNode = node
             _module.addChild(_child)
             _module.addSymbol(alias.asname, _child)
@@ -99,7 +100,7 @@ class Visitor(ast.NodeVisitor):
 
         moduleFile = self._moduleFile(node.module)
         for alias in node.names:
-            _child = ImportDefinition(moduleFile, node.module, alias.name, [alias.name, alias.asname][bool(alias.asname)])
+            _child = ImportDefinition(Parser.parseFile(moduleFile), node.module, alias.name, [alias.name, alias.asname][bool(alias.asname)])
             _child.astNode = node
             _module.addChild(_child)
             _module.addSymbol(alias.asname, _child)

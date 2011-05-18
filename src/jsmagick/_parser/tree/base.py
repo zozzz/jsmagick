@@ -43,6 +43,14 @@ class ScriptElement(object):
             else:
                 return self.parent.level + 1
 
+    class scope(Property):
+        @memoize
+        def fget(self):
+            if isinstance(self, Scope):
+                return self
+            else:
+                return self.parent.scope
+
     def __init__(self):
         self.parent = None
         self.isScope = False
@@ -88,7 +96,8 @@ class ScriptElement(object):
         return self.compiledSource
 
     def __js__(self):
-        raise NotImplementedError("ScriptElement::__js__ in %s" % self.__class__.__name__)
+        #raise NotImplementedError("ScriptElement::__js__ in %s" % self.__class__.__name__)
+        return [self.__repr__()]
 
 class HasChildren:
     __slots__ = (
@@ -197,6 +206,12 @@ class Scope:
         if not sym and allowGlobal:
             sym = self.module.findSymbol(name, allowGlobal)
         return sym
+
+    def js_accessSymbol(self, name):
+        return "%s" % name
+
+    def js_defineSymbol(self, name):
+        return "var %s" % name
 
 
 # self.test.x.y.z

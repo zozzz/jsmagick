@@ -20,9 +20,10 @@ class Compiler:
 
     class Config:
         EOL = "\r\n"
+        DEBUG = True
 
     @classmethod
-    def compile(cls, file):
+    def compile(cls, file, session=None):
 
         if not cls.CACHE_DIR:
             raise ConfigError("Compiler::CACHE_DIR not defined!")
@@ -30,11 +31,12 @@ class Compiler:
         if not cls.OUTPUT_DIR:
             raise ConfigError("Compiler::OUTPUT_DIR not defined!")
 
-        cls.initBuiltins()
-
-        sess = CompileSession()
+        sess = session or CompileSession()
 
         Parser.setSession(sess)
+
+        cls.initBuiltins()
+
         Parser.parseFile(file)
 
         for module in sess.modules:
@@ -57,4 +59,5 @@ class CompileSession:
         self.modules = []
 
     def addModule(self, module):
-        self.modules.append(module)
+        if module not in self.modules:
+            self.modules.append(module)

@@ -18,7 +18,8 @@ class Module(ScriptElement, HasChildren, Scope):
     __slots__ = (
         "_file",
         "doc",
-        "name"
+        "name",
+        "builtin"
     )
 
     class file(Property):
@@ -34,7 +35,7 @@ class Module(ScriptElement, HasChildren, Scope):
         HasChildren.__init__(self)
         Scope.__init__(self)
         self._file = file
-        self.isScope = True
+        self.builtin = False
 
         if name:
             self.name = name
@@ -49,16 +50,40 @@ class Module(ScriptElement, HasChildren, Scope):
 
     def __js__(self):
         print self.symTable
-        ret = ["function " + self.jsName() + "()"]
+        ret = []
+        ret.append('/*%s*/' % self.file)
+        ret.append("function " + self.jsName() + "()")
         ret.append("{")
         ret.append('\tvar __name__ = "' + self.name + '";')
-        ret.append('\tfunction globals(){ return globals; };')
+        ret.append('\tfunction %s(){ return %s; };' % (self.js_accessSymbol(None), self.js_accessSymbol(None)))
 
-        #for child in self.children:
-        #    ret.append(child.toJavaScript())
+        for child in self.children:
+            ret.append(child.toJavaScript())
 
         ret.append("};")
         return ret
+
+    def js_defineSymbol(self, name):
+        if '.' in name:
+            names = name.split('.')
+            defs = [self.js_accessSymbol(None)]
+            ret = []
+            while True:
+                curr = names.pop(0)
+                ret.append("if( !('%s' in %s) )" % (curr, ".".join(defs)))
+                defs.append(curr)
+                ret.append("%s={};" % (".".join(defs)))
+                if len(names) == 1:
+                    defs.append(names.pop(0))
+                    break
+            ret.append(".".join(defs))
+            return " ".join(ret)
+        return "%s.%s" % (self.js_accessSymbol(None), name)
+
+    def js_accessSymbol(self, name):
+        if name is None:
+            return "globals"
+        return "%s.%s" % (self.js_accessSymbol(None), name)
 
     @memoize
     def jsName(self):
@@ -67,7 +92,6 @@ class Module(ScriptElement, HasChildren, Scope):
 
 class ImportModule(ScriptElement):
     __slots__ = (
-        "file",
         "moduleName",
         "alias",
         "_module"
@@ -75,31 +99,30 @@ class ImportModule(ScriptElement):
 
     class module(Property):
         def fget(self):
-            if not self._module:
-                self._module = self._loadModule()
-                self._module.name = self.moduleName
+            #if not self._module:
+            #    self._module = self._loadModule()
+            #    self._module.name = self.moduleName
             return self._module
 
-    def __init__(self, file, moduleName, alias):
+    def __init__(self, module, moduleName, alias):
         ScriptElement.__init__(self)
-        self.file = file
+        self._module = module
         self.alias = alias
         self.moduleName = moduleName
-        self._module = None
 
     def matchId(self, id):
         if self.alias == id:
             return self.module
         return None
 
-    def _loadModule(self):
-        pass
+    #def _loadModule(self):
+    #    pass
 
     def __repr__(self):
-        return "<ImportModule %s, %s>" % (self.alias, self.file)
+        return "<ImportModule %s, %s>" % (self.alias, self.module)
 
     def __js__(self):
-        ret = ["globals." + self.alias + " = " + self.module.jsName() + ";"]
+        ret = [self.parent.js_defineSymbol(self.alias) + " = " + self.module.jsName() + ";"]
         return ret
 
 class ImportDefinition(ImportModule):
@@ -108,8 +131,8 @@ class ImportDefinition(ImportModule):
         "defAlias"
     )
 
-    def __init__(self, file, alias, definition, defAlias):
-        ImportModule.__init__(self, file, alias, alias)
+    def __init__(self, module, alias, definition, defAlias):
+        ImportModule.__init__(self, module, alias, alias)
         self.definition = definition
         self.defAlias = defAlias
 
@@ -121,7 +144,13 @@ class ImportDefinition(ImportModule):
         return None
 
     def __repr__(self):
-        return "<ImportDefinition %s.%s, %s>" % (self.alias, self.defAlias, self.file)
+        return "<ImportDefinition %s.%s, %s>" % (self.alias, self.defAlias, self.module)
+
+    def __js__(self):
+        if self.defAlias == "*":
+            return [self.module.jsName() + ".importAll(" + self.scope.js_accessSymbol(None) + ")"]
+        else:
+            return [self.scope.js_defineSymbol(self.defAlias) + "=" + self.module.jsName() + "." + self.definition]
 
 class Class(Statement, HasChildren, Scope):
     __slots__ = (
@@ -241,3 +270,6 @@ class Identifier(ScriptElement):
 
     def __repr__(self):
         return "<Identifier %s:%s>" % (self.qname, self.getType())
+
+    def __js__(self):
+        return ["%s" % self.qname]

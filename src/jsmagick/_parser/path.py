@@ -35,7 +35,7 @@ class PathResolver(object):
 
 
         if inModule:
-            cls.__path__.append(path.dirname(inModule))
+            cls.__path__.insert(0, path.dirname(inModule))
 
         pathname = cls.__findPathOrFile(name)
         res = None
@@ -48,7 +48,7 @@ class PathResolver(object):
                     res = _init_
 
         if inModule:
-            cls.__path__.pop()
+            cls.__path__.pop(0)
 
         return res
 

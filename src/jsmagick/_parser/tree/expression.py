@@ -57,6 +57,12 @@ class Attribute(Expression):
     def __repr__(self):
         return "<Attribute %s>" % (self.children)
 
+    def __js__(self):
+        ret = []
+        for child in self.children:
+            ret.append("".join(child.__js__()))
+        return [".".join(ret)]
+
 class Call(Expression):
     __slots__ = (
         "id",
@@ -76,6 +82,9 @@ class Call(Expression):
 
     def __repr__(self):
         return "<Call %s(%s, %s, %s, %s)>" % (self.id, self.args, self.kwargs, self.args_ref, self.kwargs_ref)
+
+    def __js__(self):
+        return [self.scope.js_accessSymbol(".".join(self.id.__js__())) + '(/*...*/)']
 
 class Subscript(Expression):
     __slots__ = (

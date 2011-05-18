@@ -135,6 +135,8 @@ function class_time()
 		//this.__getattr__ = function(a){ return this.__dict__[a]; }
 	}
 	
+	var __get__Name = '__get__';
+	
 	function cls3()
 	{
 		this.__lookup__ = [cls3, cls2, cls1];
@@ -147,12 +149,20 @@ function class_time()
 			{
 				for(var i=0, l=this.__lookup__, c ; c = l[i] ; i++)
 				{
-					if( !(a in c) ) continue;						
-						return c[a];
+					if( !(a in c) ) continue;
+					// test __get__ method exists			
+					this[a] = {__get__:function(){ return c[a]; }};			
+					return c[a];
 				}
 			}
 			else
-				return this[a];
+			{
+				var v = this[a]; 
+				// test __get__ method exists
+				if( v.__get___ )
+					v.__get__();
+				return v;
+			}
 			
 			throw "AttributeError" 
 		}
