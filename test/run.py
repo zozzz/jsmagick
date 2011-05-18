@@ -13,13 +13,16 @@ import jsmagick
 import traceback
 
 
-BREAK_ON_ERROR = True
+BREAK_ON_ERROR = False
 DEBUG = True
 
 TEST_NUMBER = 0
 SUCCESS = 0
 FAILED = 0
 TOTAL_TIME = 0.0
+
+jsmagick.Compiler.CACHE_DIR = os.path.join(DIR, "/_cache")
+jsmagick.Compiler.OUTPUT_DIR = os.path.join(DIR, "/_js")
 
 def terminal_width():
     width = 0
@@ -72,10 +75,12 @@ def runTest(dir, file):
     try:
         c = time.clock()
 
-        if DEBUG:
-            jsmagick.Parser.parseFile(os.path.join(dir, file)).dump()
-        else:
-            jsmagick.Parser.parseFile(os.path.join(dir, file))
+#        if DEBUG:
+#            jsmagick.Parser.parseFile(os.path.join(dir, file)).dump()
+#        else:
+#            jsmagick.Parser.parseFile(os.path.join(dir, file))
+
+        jsmagick.Compiler.compile(os.path.join(dir, file))
 
         t = time.clock() - c
         TOTAL_TIME += t
@@ -94,10 +99,13 @@ def runTest(dir, file):
     #print "=" * CHR_WIDTH
 
 _all_failed = False
-for sub in os.listdir(DIR):
-    _path = os.path.normpath(DIR + "/" + sub)
+
+def _runFolder(folder):
+    global _all_failed
+
+    _path = os.path.normpath(DIR + "/" + folder)
     if not os.path.isdir(_path):
-        continue
+        return
 
     jsmagick.PathResolver.addSearchPath(_path)
 
@@ -110,6 +118,8 @@ for sub in os.listdir(DIR):
                 except StopIteration:
                     _all_failed = True
                     break
+
+_runFolder("module")
 
 if _all_failed is False:
     print "=" * CHR_WIDTH

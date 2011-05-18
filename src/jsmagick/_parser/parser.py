@@ -16,9 +16,13 @@ from path import PathResolver
 
 class Parser:
     CURRENT_FILE = None
+    MODULES = {}
 
     @staticmethod
     def parseFile(file):
+        if Parser.MODULES.has_key(file):
+            return Parser.MODULES[file]
+
         Parser.CURRENT_FILE = file
 
         with open(file, "r") as fp:
@@ -26,9 +30,10 @@ class Parser:
             size = fp.tell()
             fp.seek(0, os.SEEK_SET)
 
-            ret = Parser.parseString(fp.read(size))
+            Parser.MODULES[file] = Parser.parseString(fp.read(size))
+            Parser.SESSION.addModule(Parser.MODULES[file])
             Parser.CURRENT_FILE = None
-            return ret
+            return Parser.MODULES[file]
 
     @staticmethod
     def parseString(str):
@@ -41,8 +46,13 @@ class Parser:
         visitor.visit(ast.parse(str, file))
         return visitor.root
 
+    @staticmethod
+    def setSession(sess):
+        Parser.SESSION = sess
 
-#ImportModule._loadModule = lambda self: Parser.parseFile(self.file)
+
+
+ImportModule._loadModule = lambda self: Parser.parseFile(self.file)
 
 
 class Visitor(ast.NodeVisitor):
@@ -69,6 +79,8 @@ class Visitor(ast.NodeVisitor):
         self.root = Module(Parser.CURRENT_FILE)
         self.root.astNode = node
 
+        Scope.CURRENT = self.root
+
         for sub in node.body:
             Visitor(self.root).visit(sub)
 
@@ -77,9 +89,10 @@ class Visitor(ast.NodeVisitor):
 
         for alias in node.names:
             moduleFile = self._moduleFile(alias.name)
-            _child = ImportModule(moduleFile, [alias.name, alias.asname][bool(alias.asname)])
+            _child = ImportModule(moduleFile, alias.name, [alias.name, alias.asname][bool(alias.asname)])
             _child.astNode = node
             _module.addChild(_child)
+            _module.addSymbol(alias.asname, _child)
 
     def visit_ImportFrom(self, node):
         _module = self.root.module
@@ -89,32 +102,39 @@ class Visitor(ast.NodeVisitor):
             _child = ImportDefinition(moduleFile, node.module, alias.name, [alias.name, alias.asname][bool(alias.asname)])
             _child.astNode = node
             _module.addChild(_child)
+            _module.addSymbol(alias.asname, _child)
 
     def visit_ClassDef(self, node):
 
         baseList = []
         for base in node.bases:
-            baseList.append(self._findDefinition(base, True))
+            baseList.append(Visitor().visit_get(base))
 
         # TODO: Implement decorators
         # for decor in node.decorator_list:
         #    print decor
 
-        _cls = Class(node.name, baseList, [])
+        _cls = Class(Identifier(node.name), baseList, [])
         _cls.astNode = node
+
+        Scope.CURRENT.addSymbol(node.name, _cls)
+        Scope.CURRENT = _cls
 
         for stm in node.body:
             Visitor(_cls).visit(stm)
+
         self.root.addChild(_cls)
 
     def visit_FunctionDef(self, node):
-        #print "Func: %s, args: %s" % (node.name, node.args.args)
-
-
-        _node = Function(node.name, self._arguments(node.args), [])
+        _node = Function(Identifier(node.name), self._arguments(node.args), [])
         _node.astNode = node
+
+        Scope.CURRENT.addSymbol(node.name, _node)
+        Scope.CURRENT = _node
+
         for stm in node.body:
             Visitor(_node).visit(stm)
+
         self.root.addChild(_node)
 
     def visit_Assign(self, node):
@@ -193,18 +213,17 @@ class Visitor(ast.NodeVisitor):
             self.root.addChild(_n)
 
     def visit_Name(self, node):
-        qname = self._qName(node)
-        _node = None
-        if ConstLiteral.MAP.has_key(qname):
-            _node = ConstLiteral(qname)
+        name = node.id
+        if ConstLiteral.MAP.has_key(name):
+            _node = ConstLiteral(name)
         else:
-            _node = Identifier(qname)
+            _node = Identifier(name)
 
         _node.astNode = node
         self.root.addChild(_node)
 
     def visit_Attribute(self, node):
-        _node = Attribute(Expression.Context.getCtxFromAstNode(node))
+        _node = Attribute(ExpContext.getCtxFromAstNode(node))
         _node.astNode = node
         Visitor(_node).visit(node.value)
         _node.addChild(Identifier(node.attr))
@@ -376,7 +395,7 @@ class Visitor(ast.NodeVisitor):
         _node = Subscript(
             Visitor().visit_get(node.value),
             Visitor().visit_get(node.slice),
-            Expression.Context.getCtxFromAstNode(node.ctx)
+            ExpContext.getCtxFromAstNode(node.ctx)
         )
         _node.astNode = node
         self.root.addChild(_node)
@@ -407,8 +426,11 @@ class Visitor(ast.NodeVisitor):
         _node.astNode = node
         self.root.addChild(_node)
 
+    def visit_identifier(self, node):
+        print "ID: %s" % node;
+
     def generic_visit(self, node):
-        raise NotImplementedError("%s" % node)
+        raise NotImplementedError("%s, %s" % (node, node.__class__.__name__))
 
     def _arguments(self, args):
         result = []
@@ -456,12 +478,12 @@ class Visitor(ast.NodeVisitor):
             raise ImportError("Module not found: %s in %s" % (name, self._getLocation()))
         return moduleFile
 
-    def _findDefinition(self, astNode, must=False):
+    """def _findDefinition(self, astNode, must=False):
         qName = self._qName(astNode)
         ref = self.root.ctx.getDefinitionByName(qName)
         if must and not ref:
             raise NameError("Definition not found for: %s in %s" % (qName, self._getLocation(astNode)))
-        return ref
+        return ref"""
 
     def _qName(self, n):
 

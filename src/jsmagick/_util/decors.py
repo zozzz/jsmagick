@@ -63,11 +63,3 @@ class memoize(object):
 
     def __get__(self, obj, objtype):
         return functools.partial(self.__call__, obj)
-
-class JavaScript:
-
-    def __init__(self, cls):
-        self.cls = cls
-
-    def __call__(self, *args, **kwargs):
-        return self.cls(*args, **kwargs)

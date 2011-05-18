@@ -4,8 +4,4 @@ __author__ = "Zozzz"
 
 from _parser.path import PathResolver
 from _parser.parser import Parser
-
-
-
-def compile(file):
-    Parser.parseFile(file)
+from _compiler import Compiler

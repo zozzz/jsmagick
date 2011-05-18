@@ -1,7 +1,10 @@
 
 from base import ScriptContainer
 from base import CodeBlock
+from base import Symbol
+from base import SymbolTable
 from base import Scope
+#from base import Reference
 
 from definition import Module
 from definition import Class
@@ -21,6 +24,7 @@ from expression import Index
 from expression import Print
 from expression import Slice
 from expression import Subscript
+from expression import Context as ExpContext
 
 from literal import ArrayLiteral
 from literal import ConstLiteral

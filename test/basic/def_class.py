@@ -13,3 +13,6 @@ class Test:
 
     def hello(self):
         pass
+
+class SubTest(Test):
+    pass

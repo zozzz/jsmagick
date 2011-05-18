@@ -9,6 +9,7 @@ from os import path
 
 class PathResolver(object):
 
+    #__path__ = [ path.normpath(path.join(path.abspath(path.dirname(__file__)), "../../")) ]
     __path__ = []
 
     @classmethod
@@ -72,3 +73,6 @@ class PathResolver(object):
                     return np
             elif path.isfile(np + ".py"):
                 return np
+
+for _p in sys.path:
+    PathResolver.__path__.append(_p)
